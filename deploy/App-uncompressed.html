@@ -10,20 +10,14 @@
                 
 Ext.define('CustomApp', {
     extend: 'Rally.app.TimeboxScopedApp',
-   // componentCls: 'app',
     scopeType: 'release',
     iterations:[],
     iterationPageCounter:1,
     filters:[],
     pagesize:200,
-   /* items:[{
-        xtype:'container',
-        itemId:'stats',
-        margin: 10
-    },{    
-        xtype:'container',
-        itemId:'chart'
-    }], */
+    portfolioGoal: 65,
+    cvDefectsGoal: 10,
+    unplannedGoal: 25,
     
     launch: function() {
 		this.fetchIterations( this.getContext().getTimeboxScope() );
@@ -57,7 +51,6 @@ Ext.define('CustomApp', {
         
         this.filters.push( startDateFilter );
         this.filters.push( endDateFilter );
-        console.log(this.filters.toString());
 
 		var dataScope = this.getContext().getDataContext();
 		var store = Ext.create(
@@ -86,16 +79,11 @@ Ext.define('CustomApp', {
                         _.each(records, function(record){
                             this.iterations.push(record.get('Name'));
                         },this);
-                        console.log( this.iterations );
 						this.fetchWorkItems();
                     }
                     else if(records.length === 0 && this.iterations.length === 0){
-                        console.log('no records!');
                         this.showNoDataBox();   
                     }
-                }
-                else{
-                    console.log('oh,noes!');
                 }
             }
         });
@@ -138,7 +126,6 @@ Ext.define('CustomApp', {
             scope: this,
             callback: function(records, operation) {
                 if(operation.wasSuccessful()) {
-                    //console.log('records.length',records.length);
                     _.each(records, function(record){
                         this.artifacts[i].push({
                             '_ref':record.get('_ref'),   
@@ -158,7 +145,7 @@ Ext.define('CustomApp', {
                         this.applyIterationFiltersToArtifactStore(i + 1);
                     }
                     else{
-          //              this.prepareChart();
+                        this.prepareChart();
                     }
                 }
             }
@@ -166,121 +153,83 @@ Ext.define('CustomApp', {
     },
     
     prepareChart:function(){
-        //console.log('artifacts', this.artifacts);
         if (this.artifacts.length > 0) {
             var series = [];
             var categories = [];
-            var acceptedDuringIteration = [];
-            var acceptedOutsideIteration = [];
-            var notAccepted = [];
+            var portfolioData = [];
+            var cvDefectsData = [];
+            var unplannedData = [];
+            var portfolioGoalData = [];
+            var cvDefectsGoalData = [];
+            var unplannedGoalData = [];
+
             this.artifacts = _.filter(this.artifacts,function(artifactsPerIterationName){
                 return artifactsPerIterationName.length !== 0;
             });
-            //console.log('filtered artifacts', this.artifacts);
+
             _.each(this.artifacts, function(artifactsPerIterationName){
-                var pointsAcceptedDuringIteration = 0;
-                var pointsAcceptedOutsideIteration = 0;
-                var pointsNotAccepted = 0;
+                var portfolioPoints = 0;
+                var cvDefectsPoints = 0;
+                var unplannedPoints = 0;
+                var totalPoints = 0;
                 var data = [];
                 var name = artifactsPerIterationName[0].IterationName;
                 categories.push(name);
                 _.each(artifactsPerIterationName, function(artifact){
-                    if (artifact.AcceptedDate === null) {
-                        pointsNotAccepted += artifact.PlanEstimate;
+					if ( artifact.Feature ) {
+						portfolioPoints += artifact.PlanEstimate;
+					} else if ( _.find( artifact.Tags._tagsNameArray, function( tag ) { return tag.Name == 'Customer Voice'; } ) ) {
+						cvDefectsPoints += artifact.PlanEstimate;
+                    } else {
+						unplannedPoints += artifact.PlanEstimate;
                     }
-                    else{
-                        if ((artifact.AcceptedDate >= artifact.IterationStartDate) && (artifact.AcceptedDate <= artifact.IterationEndDate)) {
-                            pointsAcceptedDuringIteration += artifact.PlanEstimate;
-                        }
-                        else{
-                            pointsAcceptedOutsideIteration += artifact.PlanEstimate;
-                        }
-                    }
+                    
+                    totalPoints += artifact.PlanEstimate;
                 });
-                acceptedDuringIteration.push(pointsAcceptedDuringIteration);
-                acceptedOutsideIteration.push(pointsAcceptedOutsideIteration);
-                notAccepted.push(pointsNotAccepted);
+                
+                portfolioData.push( ( portfolioPoints / totalPoints ) * 100 );
+                cvDefectsData.push( ( cvDefectsPoints / totalPoints ) * 100 );
+                unplannedData.push( ( unplannedPoints / totalPoints ) * 100 );
+                portfolioGoalData.push( this.portfolioGoal );
+                cvDefectsGoalData.push( this.cvDefectsGoal );
+                unplannedGoalData.push( this.unplannedGoal );
             },this);
+            
             series.push({
-                name : 'Not Accepted',
-                data : notAccepted
+                name : 'Portfolio',
+                data : portfolioData
             });
             series.push({
-                name : 'Accepted Outside Iteration',
-                data : acceptedOutsideIteration
+                name : 'CV Defects',
+                data : cvDefectsData
             });
             series.push({
-                name : 'Accepted During Iteration',
-                data : acceptedDuringIteration
+                name : 'Unplanned',
+                data : unplannedData
+            });
+            series.push({
+                name : 'Portfolio Goal',
+                data : portfolioGoalData
+            });
+            series.push({
+                name : 'CV Defects Goal',
+                data : cvDefectsGoalData
+            });
+            series.push({
+                name : 'Unplanned Goal',
+                data : unplannedGoalData
             });
             
-            //console.log('series', series);
-            this.makeChart(series, categories);
+            this.makeChart( series, categories );
         }
         else{
             this.showNoDataBox();
-        }
-        
+        }    
     },
+    
     makeChart:function(series, categories){
-        var few = 3;
-        var accepted = [];
-        var numOfIterations = categories.length;
-        var lastFewAccepted = [];
-        var bestFewAccepted = [];
-        var worstFewAccepted = [];
-        
-        var avgLast = 0;
-        var avgBest = 0;
-        var avgWorst = 0;
-        var totalLast = 0;
-        var totalBest = 0;
-        var totalWorst = 0;
-        
-        
-        for(var i=0; i<numOfIterations; i++){
-            accepted.push(series[2].data[i]);
-        }
-        
-        var yValues = series[2].data;
-        var xValues = [];
-        for(i=0; i< numOfIterations; i++){
-            xValues.push(i);
-        }
-        
-        var lr = this.calculateTrend(yValues, xValues);
-        var minX = 0;
-        var maxX = categories.length-1;
-        
-         series.push({
-            name: 'Trend for Accepted During Iteration',
-            type: 'line',
-            data: [[minX, lr.slope * minX + lr.intercept], 
-                   [maxX, lr.slope * maxX + lr.intercept]],
-            marker:{enabled:false},
-            enableMouseTracking: false
-        });
-        
-        lastFewAccepted = _.last(accepted, few);
-        bestFewAccepted = _.last(accepted.sort(function(a, b){return a-b;}),few);
-        worstFewAccepted = _.last(accepted.sort(function(a, b){return b-a;}),few);
-        
-        _.each(lastFewAccepted, function(element){totalLast += element;});
-        _.each(bestFewAccepted, function(element){totalBest += element;});
-        _.each(worstFewAccepted, function(element){totalWorst += element;});
-        
-        avgLast = parseFloat((parseFloat(totalLast/few)).toFixed(2));
-        avgBest = parseFloat((parseFloat(totalBest/few)).toFixed(2));
-        avgWorst = parseFloat((parseFloat(totalWorst/few)).toFixed(2));
-        
-        
-        
-        Ext.ComponentQuery.query('container[itemId=stats]')[0].update('Average accepted during iteration for last 3 iterations: ' + avgLast +  '</br>' +
-                                   'Average accepted during iteration for best 3 iterations: ' +  avgBest + '</br>' +
-                                   'Average accepted during iteration for worst 3 iterations: '  +  avgWorst + '</br>');
-        
         this._myMask.hide();
-        this.down('#chart').add({
+        this.add({
             xtype: 'rallychart',
             chartConfig: {
                 chart:{
@@ -288,7 +237,7 @@ Ext.define('CustomApp', {
                     zoomType: 'xy'
                 },
                 title:{
-                    text: 'Velocity Chart'
+                    text: 'Work Distribution Chart'
                 },
                 //colors: ['#87CEEB', '#8FBC8F', '#008080'],
                 //chartColors: ['#87CEEB', '#8FBC8F', '#008080'],
@@ -317,30 +266,6 @@ Ext.define('CustomApp', {
             }
           
         });
-    },
-    
-    calculateTrend:function(y,x){
-        var lr = {};
-        var n = y.length;
-        var sum_x = 0;
-        var sum_y = 0;
-        var sum_xy = 0;
-        var sum_xx = 0;
-        var sum_yy = 0;
-        
-        for (var i = 0; i < y.length; i++) {
-            sum_x += x[i];
-            sum_y += y[i];
-            sum_xy += (x[i]*y[i]);
-            sum_xx += (x[i]*x[i]);
-            sum_yy += (y[i]*y[i]);
-        }
-        
-        lr.slope = (n * sum_xy - sum_x * sum_y) / (n*sum_xx - sum_x * sum_x);
-        lr.intercept = (sum_y - lr.slope * sum_x)/n;
-        lr.r2 = Math.pow((n*sum_xy - sum_x*sum_y)/Math.sqrt((n*sum_xx-sum_x*sum_x)*(n*sum_yy-sum_y*sum_y)),2);
-        
-        return lr;
     },
     
     showNoDataBox:function(){
