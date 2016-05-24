@@ -3,12 +3,11 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.TimeboxScopedApp',
    // componentCls: 'app',
     scopeType: 'release',
-    
-   /* iterations:[],
+    iterations:[],
     iterationPageCounter:1,
     filters:[],
     pagesize:200,
-    items:[{
+   /* items:[{
         xtype:'container',
         itemId:'stats',
         margin: 10
@@ -78,7 +77,8 @@ Ext.define('CustomApp', {
                         _.each(records, function(record){
                             this.iterations.push(record.get('Name'));
                         },this);
-                      //  this.getMaxNumberOfUniqueIterationNames();
+                        console.log( this.iterations );
+						this.fetchWorkItems();
                     }
                     else if(records.length === 0 && this.iterations.length === 0){
                         console.log('no records!');
@@ -91,63 +91,40 @@ Ext.define('CustomApp', {
             }
         });
     },
-/*    
-    getMaxNumberOfUniqueIterationNames:function(){
-        console.log('all iteratons', this.iterations.length, this.iterations);
-        var max = 10;
-        this.iterationPageCounter++;
-        console.log('this.iterationPageCounter',this.iterationPageCounter); 
-        this.iterations = _.uniq(this.iterations);
-        if (this.iterations.length > max) {
-            this.iterations = this.iterations.slice(0,10);
-        }
-        console.log('unique iteratons', this.iterations);
+
+    fetchWorkItems:function(){
+        this.artifactStore = Ext.create(
+			'Rally.data.wsapi.artifact.Store',
+			{
+				models: ['Defect', 'DefectSuite', 'UserStory'],
+				fetch: ['ObjectID','Name','FormattedID','PlanEstimate','Iteration','Tags','Feature'],
+				limit: Infinity
+			},
+			this
+        );
         
-        if (this.iterations.length < max) {
-            //console.log('this.iterations.length < max'); 
-            this.applyInitialFilterToIterations();
-        }
-        else{
-            console.log('makeFiltersForArtifacts()');
-            //this.iterations.reverse();
-            this.makeFiltersForArtifacts();
-        }
-    }, */
-    
-    /*
-    makeFiltersForArtifacts:function(){
-        this.iterations.reverse();
-        //console.log("iterations: ", this.iterations.length, this.iterations);
-        var iterationFilters = [];
+        this.iterationFilters = [];
         _.each(this.iterations, function(iteration){
             var filter = Ext.create('Rally.data.wsapi.Filter', {
                 property: 'Iteration.Name',
                 value: iteration
             });
-            console.log(filter.toString());
-            iterationFilters.push(filter);
-            
-        });
-        this.makeArtifactStore(iterationFilters);
-    },
-    
-    makeArtifactStore:function(iterationFilters){
-        var numOfIterations = iterationFilters.length;
+            this.iterationFilters.push(filter);
+			},
+			this
+        );
+        
+        var numOfIterations = this.iterationFilters.length;
         this.artifacts = new Array(numOfIterations);
         for (var i = 0; i < numOfIterations; i++) {
             this.artifacts[i] = [];
         }
-        this.iterationFilters = iterationFilters;
-        this.artifactStore = Ext.create('Rally.data.wsapi.artifact.Store',{
-            models: ['Defect', 'DefectSuite', 'UserStory'],
-            fetch: ['ObjectID','Name','FormattedID','ScheduleState','PlanEstimate','AcceptedDate','Iteration', 'Project', 'StartDate', 'EndDate'],
-            limit: Infinity
-        });
+       
         this.applyIterationFiltersToArtifactStore(0);
     },
     
     applyIterationFiltersToArtifactStore:function(i){
-        this.artifactStore.addFilter(this.iterationFilters[i],false);
+		this.artifactStore.addFilter(this.iterationFilters[i],false);
         this.artifactStore.load({
             scope: this,
             callback: function(records, operation) {
@@ -159,27 +136,26 @@ Ext.define('CustomApp', {
                             'FormattedID':record.get('FormattedID'),
                             'Name':record.get('Name'),
                             'PlanEstimate':record.get('PlanEstimate'),
-                            'ScheduleState': record.get('ScheduleState'),
-                            'AcceptedDate': record.get('AcceptedDate') && Rally.util.DateTime.toIsoString(record.get('AcceptedDate')) || null,
-                            'ProjectName': record.get('Project')._refObjectName,
                             'IterationName': record.get('Iteration')._refObjectName,
                             'IterationRef' : record.get('Iteration')._ref,
-                            'IterationStartDate' : record.get('Iteration').StartDate,
-                            'IterationEndDate' : record.get('Iteration').EndDate,
-                            'IterationPlanEstimate' : record.get('Iteration').PlanEstimate
+                            'Tags' : record.get('Tags'),
+                            'Feature' : record.get('Feature')
                         });
                     },this);
                     this.artifactStore.clearFilter(records.length);
-                    if (i < this.iterationFilters.length-1) { //if not done, call itself
+                    
+                    //if not done, call itself for the next iteration
+                    if (i < this.iterationFilters.length-1) { 
                         this.applyIterationFiltersToArtifactStore(i + 1);
                     }
                     else{
-                        this.prepareChart();
+          //              this.prepareChart();
                     }
                 }
             }
         });
     },
+    
     prepareChart:function(){
         //console.log('artifacts', this.artifacts);
         if (this.artifacts.length > 0) {
@@ -361,5 +337,5 @@ Ext.define('CustomApp', {
     showNoDataBox:function(){
         this._myMask.hide();
         Ext.ComponentQuery.query('container[itemId=stats]')[0].update('There is no data. </br>Check if there are interations in scope and work items with PlanEstimate assigned for iterations');
-    } */
+    }
 });
