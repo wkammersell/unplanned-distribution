@@ -153,6 +153,10 @@ Ext.define('CustomApp', {
             var portfolioGoalData = [];
             var cvDefectsGoalData = [];
             var unplannedGoalData = [];
+            var releaseTotalPoints = 0;
+            var releaseTotalPlannedPoints = 0;
+            var releaseTotalCvDefectsPoints = 0;
+            var releaseTotalUnplannedPoints = 0;
 
             this.artifacts = _.filter(this.artifacts,function(artifactsPerIterationName){
                 return artifactsPerIterationName.length !== 0;
@@ -164,8 +168,10 @@ Ext.define('CustomApp', {
                 var unplannedPoints = 0;
                 var totalPoints = 0;
                 var data = [];
+                
                 var name = artifactsPerIterationName[0].IterationName;
                 categories.push(name);
+                
                 _.each(artifactsPerIterationName, function(artifact){
 					if ( artifact.Feature ) {
 						portfolioPoints += artifact.PlanEstimate;
@@ -176,39 +182,71 @@ Ext.define('CustomApp', {
                     }
                     
                     totalPoints += artifact.PlanEstimate;
-                });
+                },this);
                 
-                portfolioData.push( ( portfolioPoints / totalPoints ) * 100 );
-                cvDefectsData.push( ( cvDefectsPoints / totalPoints ) * 100 );
-                unplannedData.push( ( unplannedPoints / totalPoints ) * 100 );
+                portfolioData.push( ( ( portfolioPoints / totalPoints ) * 100 ) );
+                cvDefectsData.push( ( ( cvDefectsPoints / totalPoints ) * 100 ) );
+                unplannedData.push( ( ( unplannedPoints / totalPoints ) * 100 ) );
                 portfolioGoalData.push( this.portfolioGoal );
                 cvDefectsGoalData.push( this.cvDefectsGoal );
                 unplannedGoalData.push( this.unplannedGoal );
+                
+                releaseTotalPoints += totalPoints;
+                releaseTotalPlannedPoints += portfolioPoints;
+                releaseTotalCvDefectsPoints += cvDefectsPoints;
+                releaseTotalUnplannedPoints += unplannedPoints;
             },this);
+            
+            // Add a category for the Release Total
+            categories.push( 'Total' );
+            portfolioData.push( ( ( releaseTotalPlannedPoints / releaseTotalPoints ) * 100 ) );
+            cvDefectsData.push( ( ( releaseTotalCvDefectsPoints / releaseTotalPoints ) * 100 ) );
+            unplannedData.push( ( ( releaseTotalUnplannedPoints / releaseTotalPoints ) * 100 ) );
+            portfolioGoalData.push( this.portfolioGoal );
+            cvDefectsGoalData.push( this.cvDefectsGoal );
+            unplannedGoalData.push( this.unplannedGoal );
             
             series.push({
                 name : 'Portfolio',
-                data : portfolioData
+                data : portfolioData,
+                type : 'column'
             });
             series.push({
                 name : 'CV Defects',
-                data : cvDefectsData
+                data : cvDefectsData,
+                type : 'column'
             });
             series.push({
                 name : 'Unplanned',
-                data : unplannedData
+                data : unplannedData,
+                type : 'column'
             });
             series.push({
                 name : 'Portfolio Goal',
-                data : portfolioGoalData
+                data : portfolioGoalData,
+                type : 'line',
+                lineWidth : 2,
+                marker: {
+					enabled: false
+                }
             });
             series.push({
                 name : 'CV Defects Goal',
-                data : cvDefectsGoalData
+                data : cvDefectsGoalData,
+                type : 'line',
+                lineWidth : 2,
+                marker: {
+					enabled: false
+                }
             });
             series.push({
                 name : 'Unplanned Goal',
-                data : unplannedGoalData
+                data : unplannedGoalData,
+                type : 'line',
+                lineWidth : 2,
+                marker: {
+					enabled: false
+                }
             });
             
             this.makeChart( series, categories );
@@ -220,7 +258,7 @@ Ext.define('CustomApp', {
     
     makeChart:function(series, categories){
         this._myMask.hide();
-        this.add({
+        var chart = this.add({
             xtype: 'rallychart',
             chartConfig: {
                 chart:{
@@ -242,11 +280,13 @@ Ext.define('CustomApp', {
                         text: 'Plan Estimates'
                     },
                     allowDecimals: false,
-                    min : 0
+                    min : 0,
+                    max : 100
                 },
                 plotOptions: {
                     column: {
-                        stacking: 'normal'
+                        pointPadding: 0.2,
+                        borderWidth: 0
                     }
                 }
             },
@@ -257,6 +297,9 @@ Ext.define('CustomApp', {
             }
           
         });
+        
+        // Workaround bug in setting colors - http://stackoverflow.com/questions/18361920/setting-colors-for-rally-chart-with-2-0rc1/18362186
+        chart.setChartColors( [ '#005EB8', '#FF8200', '#FAD200', '#7CAFD7', '#F6A900', '#FFDD82' ] );
     },
     
     showNoDataBox:function(){
