@@ -10,11 +10,7 @@ Ext.define('CustomApp', {
     cvDefectsGoal: 10,
     unplannedGoal: 25,
     
-    launch: function() {
-		this.fetchIterations( this.getContext().getTimeboxScope() );
-    },
-    
-    onTimeboxScopeChange: function(newTimeboxScope) {
+    onScopeChange: function(newTimeboxScope) {
 		this.callParent( arguments );
 		this.fetchIterations( newTimeboxScope );
 	},
@@ -258,6 +254,9 @@ Ext.define('CustomApp', {
     
     makeChart:function(series, categories){
         this._myMask.hide();
+        if( this.down( 'rallychart' ) ) {
+			this.down( 'rallychart' ).destroy();
+        }
         var chart = this.add({
             xtype: 'rallychart',
             chartConfig: {
