@@ -1,11 +1,23 @@
 
 Ext.define('CustomApp', {
     extend: 'Rally.app.TimeboxScopedApp',
+    getSettingsFields: function() {
+		return [
+			{
+				name: 'onlyshowaccepted',
+				xtype: 'rallycheckboxfield',
+				fieldLabel: '',
+				boxLabel: 'Only show accepted work items.'
+			}
+		];
+	},
+	config: {
+        defaultSettings: {
+            onlyshowaccepted: false
+        }
+    },
     scopeType: 'release',
-    iterations:[],
-    iterationPageCounter:1,
-    filters:[],
-    pagesize:200,
+    pagesize: 200,
     portfolioGoal: 65,
     cvDefectsGoal: 10,
     unplannedGoal: 25,
@@ -16,6 +28,14 @@ Ext.define('CustomApp', {
 	},
     
     fetchIterations:function( timeboxScope ){
+		// Delete any existing UI components
+		if( this.down( 'rallychart' ) ) {
+			this.down( 'rallychart' ).destroy();
+        }
+        if( this.down( 'label' ) ) {
+			this.down( 'label' ).destroy();
+        }    
+    
         // Show loading message
         this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Calculating...Please wait."});
         this._myMask.show();
@@ -58,13 +78,17 @@ Ext.define('CustomApp', {
 
         this.iterations = [];
         store.addFilter(this.filters,false);
-        store.loadPage(this.iterationPageCounter, {
+        store.loadPage(1, {
             scope: this,
             callback: function(records, operation) {
                 if(operation.wasSuccessful()) {
                     if (records.length > 0) {
                         _.each(records, function(record){
-                            this.iterations.push(record.get('Name'));
+							// Only put in unique iteration names to support higher-level project graphs
+							var iterationName = record.get('Name');
+							if( this.iterations.indexOf( iterationName ) == -1 ) {
+								this.iterations.push( iterationName );
+                            }
                         },this);
 						this.fetchWorkItems();
                     }
@@ -88,12 +112,15 @@ Ext.define('CustomApp', {
         );
         
         this.iterationFilters = [];
-        _.each(this.iterations, function(iteration){
-            var filter = Ext.create('Rally.data.wsapi.Filter', {
-                property: 'Iteration.Name',
-                value: iteration
-            });
-            this.iterationFilters.push(filter);
+        _.each(this.iterations, function(iteration)
+			{
+				var iterationNameFilter = Ext.create('Rally.data.wsapi.Filter',
+					{
+						property: 'Iteration.Name',
+						value: iteration
+					}
+				);				
+				this.iterationFilters.push(iterationNameFilter);
 			},
 			this
         );
@@ -108,7 +135,21 @@ Ext.define('CustomApp', {
     },
     
     applyIterationFiltersToArtifactStore:function(i){
-		this.artifactStore.addFilter(this.iterationFilters[i],false);
+		this.artifactStore.addFilter(this.iterationFilters[i], false);
+		
+		// Check if the settings say we should only look at accepted work items
+		var onlyShowAccepted = this.getSetting( 'onlyshowaccepted' );
+		if ( onlyShowAccepted ) {
+			var acceptedFilter = Ext.create('Rally.data.wsapi.Filter',
+				{
+					property: 'ScheduleState',
+					operator: '>=',
+					value: 'Accepted'
+				}
+			);				
+			this.artifactStore.addFilter(acceptedFilter, false);
+		}
+		
         this.artifactStore.load({
             scope: this,
             callback: function(records, operation) {
@@ -125,7 +166,7 @@ Ext.define('CustomApp', {
                             'Feature' : record.get('Feature')
                         });
                     },this);
-                    this.artifactStore.clearFilter(records.length);
+                    this.artifactStore.clearFilter();
                     
                     //if not done, call itself for the next iteration
                     if (i < this.iterationFilters.length-1) { 
@@ -178,6 +219,7 @@ Ext.define('CustomApp', {
                     }
                     
                     totalPoints += artifact.PlanEstimate;
+
                 },this);
                 
                 portfolioData.push( ( ( portfolioPoints / totalPoints ) * 100 ) );
@@ -254,9 +296,6 @@ Ext.define('CustomApp', {
     
     makeChart:function(series, categories){
         this._myMask.hide();
-        if( this.down( 'rallychart' ) ) {
-			this.down( 'rallychart' ).destroy();
-        }
         var chart = this.add({
             xtype: 'rallychart',
             chartConfig: {
@@ -303,6 +342,9 @@ Ext.define('CustomApp', {
     
     showNoDataBox:function(){
         this._myMask.hide();
-        Ext.ComponentQuery.query('container[itemId=stats]')[0].update('There is no data. </br>Check if there are interations in scope and work items with PlanEstimate assigned for iterations');
+		this.add({
+			xtype: 'label',
+			text: 'There is no data. Check if there are iterations in scope and work items with PlanEstimate assigned for iterations'
+        });
     }
 });
