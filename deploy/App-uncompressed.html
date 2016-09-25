@@ -17,19 +17,34 @@ Ext.define('CustomApp', {
 				xtype: 'rallycheckboxfield',
 				fieldLabel: '',
 				boxLabel: 'Only show accepted work items.'
+			},
+			{
+				name: 'plannedgoal',
+				xtype: 'rallynumberfield',
+				fieldLabel: 'Planned Work Goal %'
+			},
+			{
+				name: 'cvgoal',
+				xtype: 'rallynumberfield',
+				fieldLabel: 'Customer Voice Work Goal %'
+			},
+			{
+				name: 'unplannedgoal',
+				xtype: 'rallynumberfield',
+				fieldLabel: 'Unplanned Work Goal %'
 			}
 		];
 	},
 	config: {
         defaultSettings: {
-            onlyshowaccepted: false
+            onlyshowaccepted: false,
+            plannedgoal: 65,
+            cvgoal: 10,
+            unplannedgoal: 25
         }
     },
     scopeType: 'release',
     pagesize: 200,
-    portfolioGoal: 65,
-    cvDefectsGoal: 10,
-    unplannedGoal: 25,
     
     onScopeChange: function(newTimeboxScope) {
 		this.callParent( arguments );
@@ -203,6 +218,10 @@ Ext.define('CustomApp', {
             var releaseTotalPlannedPoints = 0;
             var releaseTotalCvDefectsPoints = 0;
             var releaseTotalUnplannedPoints = 0;
+            
+            var portfolioGoal = this.getSetting( 'plannedgoal' );
+            var cvGoal = this.getSetting( 'cvgoal' );
+            var unplannedGoal = this.getSetting( 'unplannedgoal' );
 
             this.artifacts = _.filter(this.artifacts,function(artifactsPerIterationName){
                 return artifactsPerIterationName.length !== 0;
@@ -234,9 +253,10 @@ Ext.define('CustomApp', {
                 portfolioData.push( ( ( portfolioPoints / totalPoints ) * 100 ) );
                 cvDefectsData.push( ( ( cvDefectsPoints / totalPoints ) * 100 ) );
                 unplannedData.push( ( ( unplannedPoints / totalPoints ) * 100 ) );
-                portfolioGoalData.push( this.portfolioGoal );
-                cvDefectsGoalData.push( this.cvDefectsGoal );
-                unplannedGoalData.push( this.unplannedGoal );
+                
+                portfolioGoalData.push( portfolioGoal );
+                cvDefectsGoalData.push( cvGoal );
+                unplannedGoalData.push( unplannedGoal );
                 
                 releaseTotalPoints += totalPoints;
                 releaseTotalPlannedPoints += portfolioPoints;
@@ -249,9 +269,9 @@ Ext.define('CustomApp', {
             portfolioData.push( ( ( releaseTotalPlannedPoints / releaseTotalPoints ) * 100 ) );
             cvDefectsData.push( ( ( releaseTotalCvDefectsPoints / releaseTotalPoints ) * 100 ) );
             unplannedData.push( ( ( releaseTotalUnplannedPoints / releaseTotalPoints ) * 100 ) );
-            portfolioGoalData.push( this.portfolioGoal );
-            cvDefectsGoalData.push( this.cvDefectsGoal );
-            unplannedGoalData.push( this.unplannedGoal );
+            portfolioGoalData.push( portfolioGoal );
+            cvDefectsGoalData.push( cvGoal );
+            unplannedGoalData.push( unplannedGoal );
             
             series.push({
                 name : 'Portfolio',
@@ -304,7 +324,6 @@ Ext.define('CustomApp', {
     },
     
     makeChart:function(series, categories){
-        this._myMask.hide();
         var chart = this.add({
             xtype: 'rallychart',
             chartConfig: {
@@ -315,8 +334,6 @@ Ext.define('CustomApp', {
                 title:{
                     text: 'Work Distribution Chart'
                 },
-                //colors: ['#87CEEB', '#8FBC8F', '#008080'],
-                //chartColors: ['#87CEEB', '#8FBC8F', '#008080'],
                 xAxis: {
                     title: {
                         text: 'Iterations'
@@ -347,6 +364,8 @@ Ext.define('CustomApp', {
         
         // Workaround bug in setting colors - http://stackoverflow.com/questions/18361920/setting-colors-for-rally-chart-with-2-0rc1/18362186
         chart.setChartColors( [ '#005EB8', '#FF8200', '#FAD200', '#7CAFD7', '#F6A900', '#FFDD82' ] );
+        
+        this._myMask.hide();
     },
     
     showNoDataBox:function(){
